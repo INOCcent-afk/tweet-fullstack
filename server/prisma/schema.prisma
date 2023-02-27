@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int     @id @default(autoincrement())
+  username   String  @unique
+  name       String
+  email      String  @unique
+  followedBy User[]  @relation("UserFollows")
+  following  User[]  @relation("UserFollows")
+  tweets     Tweet[]
+  Likes      Like[]
+}
+
+model Tweet {
+  id              Int     @id @default(autoincrement())
+  createdBy       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int     @unique
+  tweet           String
+  retweetId       String?
+  retweetCount    Int
+  tweets          Tweet[] @relation("Tweets")
+  // This second "side" of the Tweets relation exists solely 
+  // to satisfy prisma's requirements; we won't access it directly.
+  symmetricTweets Tweet[] @relation("Tweets")
+  likes           Like[]
+}
+
+model Like {
+  id        Int     @id @default(autoincrement())
+  createdBy User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  like      Boolean
+  tweet     Tweet   @relation(fields: [tweetId], references: [id])
+  tweetId   Int     @unique
+}
