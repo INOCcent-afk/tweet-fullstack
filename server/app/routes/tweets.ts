@@ -114,7 +114,6 @@ tweetRouter.post("/reply", async (req, res) => {
 			}
 		}
 	} catch (error) {
-		console.log(error);
 		res.status(400).send(
 			sentObjectData(false, {
 				message: "Failed to create tweet",
