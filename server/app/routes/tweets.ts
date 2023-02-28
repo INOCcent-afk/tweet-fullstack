@@ -1,17 +1,38 @@
+import { User } from "@prisma/client";
 import express from "express";
+import { isAuthorized } from "../middlewares/isAuthorized";
 import prisma from "../utils/client";
 import sentObjectData from "../utils/sentObjectData";
 
+interface RequestBody {
+	tweet: string;
+	user: User;
+}
+
 const tweetRouter = express.Router();
 
-tweetRouter.get("/newsFeed", async (req, res) => {
+tweetRouter.get("/newsFeed", isAuthorized, async (req, res) => {
 	try {
+		const { user }: RequestBody = req.body;
+
 		const tweets = await prisma.tweet.findMany({
-			where: {},
+			where: {
+				parentId: null,
+				createdBy: {
+					id: user.id,
+				},
+			},
 			include: {
 				tweets: true,
 				likes: true,
-				createdBy: true,
+				createdBy: {
+					select: {
+						id: true,
+						name: true,
+						username: true,
+						email: true,
+					},
+				},
 			},
 		});
 
@@ -19,7 +40,7 @@ tweetRouter.get("/newsFeed", async (req, res) => {
 	} catch (error) {}
 });
 
-tweetRouter.get("/:id", async (req, res) => {
+tweetRouter.get("/:id", isAuthorized, async (req, res) => {
 	try {
 		const { id } = req.params;
 
@@ -35,22 +56,22 @@ tweetRouter.get("/:id", async (req, res) => {
 	}
 });
 
-tweetRouter.post("/", async (req, res) => {
+tweetRouter.post("/", isAuthorized, async (req, res) => {
 	try {
-		const {} = req.body;
+		const { tweet, user }: RequestBody = req.body;
 
-		const tweet = await prisma.tweet.create({
+		const createdTweet = await prisma.tweet.create({
 			data: {
-				tweet: "Hi",
+				tweet: tweet,
 				createdBy: {
 					connect: {
-						id: 1,
+						id: user.id,
 					},
 				},
 			},
 		});
 
-		res.status(201).send(sentObjectData(true, tweet));
+		res.status(201).send(sentObjectData(true, createdTweet));
 	} catch (error) {
 		console.log(error);
 		res.status(400).send(
@@ -61,28 +82,27 @@ tweetRouter.post("/", async (req, res) => {
 	}
 });
 
-tweetRouter.post("/reply", async (req, res) => {
+tweetRouter.post("/reply/:id", isAuthorized, async (req, res) => {
 	try {
-		const {} = req.body;
+		const { id } = req.params;
+		const { tweet, user }: RequestBody = req.body;
 
-		const id = 13;
-
-		const tweet = await prisma.tweet.create({
+		const createdTweet = await prisma.tweet.create({
 			data: {
-				tweet: "Hi Number 13!!!",
-				parentId: id,
+				tweet: tweet,
+				parentId: Number(id),
 				createdBy: {
 					connect: {
-						id: 1,
+						id: user.id,
 					},
 				},
 			},
 		});
 
-		if (tweet) {
+		if (createdTweet) {
 			const getTweets = await prisma.tweet.findUnique({
 				where: {
-					id: id,
+					id: Number(id),
 				},
 				select: {
 					tweets: {
@@ -96,11 +116,11 @@ tweetRouter.post("/reply", async (req, res) => {
 			if (getTweets) {
 				const repliedTo = await prisma.tweet.update({
 					where: {
-						id: id,
+						id: Number(id),
 					},
 					data: {
 						tweets: {
-							set: [...getTweets.tweets, { id: tweet.id }],
+							set: [...getTweets.tweets, { id: createdTweet.id }],
 						},
 					},
 					include: {
@@ -117,6 +137,149 @@ tweetRouter.post("/reply", async (req, res) => {
 		res.status(400).send(
 			sentObjectData(false, {
 				message: "Failed to create tweet",
+			})
+		);
+	}
+});
+
+tweetRouter.post("/retweet/:id", isAuthorized, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { tweet, user }: RequestBody = req.body;
+
+		const createdTweet = await prisma.tweet.create({
+			data: {
+				tweet: tweet,
+				retweetId: Number(id),
+				createdBy: {
+					connect: {
+						id: user.id,
+					},
+				},
+			},
+		});
+
+		if (createdTweet) {
+			const reTweet = await prisma.tweet.update({
+				where: {
+					id: Number(id),
+				},
+
+				data: {
+					retweetCount: {
+						increment: 1,
+					},
+				},
+			});
+
+			if (reTweet)
+				res.status(201).send(sentObjectData(true, createdTweet));
+		}
+	} catch (error) {
+		console.log(error);
+		res.status(400).send(
+			sentObjectData(false, {
+				message: "Failed to create tweet",
+			})
+		);
+	}
+});
+
+tweetRouter.post("/like/:id", isAuthorized, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { user }: RequestBody = req.body;
+
+		const tweet = await prisma.tweet.findUnique({
+			where: {
+				id: Number(id),
+			},
+			select: {
+				likes: {
+					where: {
+						userId: user.id,
+					},
+				},
+			},
+		});
+
+		const isAlreadyLiked = Boolean(tweet) && tweet?.likes.length !== 0;
+
+		if (isAlreadyLiked) {
+			// It Should never go here
+			return res.status(400).send(
+				sentObjectData(false, {
+					message: "Tweet is already liked",
+				})
+			);
+		}
+
+		const createdLike = await prisma.like.create({
+			data: {
+				tweets: {
+					connect: {
+						id: Number(id),
+					},
+				},
+				createdBy: {
+					connect: {
+						id: user.id,
+					},
+				},
+			},
+		});
+
+		res.status(201).send(sentObjectData(true, createdLike));
+	} catch (error) {
+		console.log(error);
+		res.status(400).send(
+			sentObjectData(false, {
+				message: "Failed to like tweet",
+			})
+		);
+	}
+});
+
+tweetRouter.delete("/unlike/:id", isAuthorized, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { user }: RequestBody = req.body;
+
+		const tweet = await prisma.tweet.findFirst({
+			where: {
+				id: Number(id),
+			},
+			select: {
+				likes: {
+					where: {
+						userId: user.id,
+					},
+				},
+			},
+		});
+
+		const isAlreadyUnliked = Boolean(tweet) && tweet?.likes.length === 0;
+
+		if (isAlreadyUnliked) {
+			// It Should never go here
+			return res.status(400).send(
+				sentObjectData(false, {
+					message: "tweet is already unliked",
+				})
+			);
+		}
+
+		const deleteLike = await prisma.like.delete({
+			where: {
+				id: tweet?.likes[0].id,
+			},
+		});
+
+		res.status(200).send(sentObjectData(true, deleteLike));
+	} catch (error) {
+		res.status(400).send(
+			sentObjectData(false, {
+				message: "Failed to unlike tweet",
 			})
 		);
 	}

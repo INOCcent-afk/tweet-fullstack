@@ -41,7 +41,5 @@ model Like {
   id        Int     @id @default(autoincrement())
   createdBy User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  like      Boolean
-  tweet     Tweet   @relation(fields: [tweetId], references: [id])
-  tweetId   Int     @unique
+  tweets    Tweet[]
 }
