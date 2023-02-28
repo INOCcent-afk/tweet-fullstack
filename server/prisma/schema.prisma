@@ -15,6 +15,7 @@ model User {
   username   String  @unique
   name       String
   email      String  @unique
+  password   String
   followedBy User[]  @relation("UserFollows")
   following  User[]  @relation("UserFollows")
   tweets     Tweet[]
@@ -24,10 +25,11 @@ model User {
 model Tweet {
   id              Int     @id @default(autoincrement())
   createdBy       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId          Int     @unique
+  userId          Int
   tweet           String
-  retweetId       String?
-  retweetCount    Int
+  retweetId       Int?
+  retweetCount    Int?    @default(0)
+  parentId        Int?
   tweets          Tweet[] @relation("Tweets")
   // This second "side" of the Tweets relation exists solely 
   // to satisfy prisma's requirements; we won't access it directly.

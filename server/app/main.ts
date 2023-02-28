@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import config from "./utils/config";
 import userRouter from "./routes/users";
+import tweetRouter from "./routes/tweets";
 
 (async () => {
 	const app = express();
@@ -33,10 +34,11 @@ import userRouter from "./routes/users";
 
 	// Routers
 	router.use("/user", userRouter);
+	router.use("/tweet", tweetRouter);
 	app.use("/api/v1", router); // Default starting url
 
 	app.get("/", (req, res) => {
-		res.send("WELCOME");
+		res.send("WELCOME TO TWITTER API");
 	});
 
 	const PORT = process.env.PORT || 8000;
